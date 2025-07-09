@@ -1,0 +1,7 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==11.0.3
+redis[hiredis]==5.0.1
+orjson==3.9.10
+uvloop==0.18.0
+httptools==0.6.1
