@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Real-Time Traffic Monitoring System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        #map {
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        .stats-section {
+            margin-bottom: 25px;
+        }
+
+        .stats-section h3 {
+            color: #667eea;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e1e8ff;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #2c5282;
+        }
+
+        .alerts-container {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+
+        .alert-item.speeding {
+            background: #fff5f5;
+            border-color: #fed7d7;
+            color: #c53030;
+        }
+
+        .alert-item.area_violation {
+            background: #fffaf0;
+            border-color: #fbd38d;
+            color: #c05621;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #48bb78;
+            box-shadow: 0 0 6px rgba(72, 187, 120, 0.4);
+        }
+
+        .status-offline {
+            background: #e53e3e;
+            box-shadow: 0 0 6px rgba(229, 62, 62, 0.4);
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+
+        .performance-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            z-index: 1000;
+            font-family: 'Courier New', monospace;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-size: 0.8em;
+        }
+
+        .zoom-info {
+            margin-bottom: 5px;
+        }
+
+        .no-alerts {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .reconnecting {
+            background: #fed7d7 !important;
+            color: #c53030 !important;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .updating {
+            animation: pulse 0.5s infinite;
+        }
+
+        /* Custom cluster styles for better performance */
+        .marker-cluster-small {
+            background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+            background-color: rgba(110, 204, 57, 0.6);
+        }
+
+        .marker-cluster-medium {
+            background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+            background-color: rgba(240, 194, 12, 0.6);
+        }
+
+        .marker-cluster-large {
+            background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+            background-color: rgba(241, 128, 23, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🚀 Real-Time Traffic Monitoring System</h1>
+            <div class="header-status" id="headerStatus">
+                <span class="status-indicator status-offline"></span>
+                Connecting...
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="stats-section">
+                <h3>📊 Fleet Statistics</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Currently driving taxis</span>
+                    <span class="stat-value" id="activeTaxis">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Overall distance of all taxis</span>
+                    <span class="stat-value" id="totalDistance">- km</span>
+                </div>
+            </div>
+
+            <div class="stats-section">
+                <h3>🚨 Area violations</h3>
+                <div class="alerts-container" id="areaViolationsContainer">
+                    <div class="no-alerts">No violations</div>
+                </div>
+            </div>
+
+            <div class="stats-section">
+                <h3>⚡ Speeding incidents</h3>
+                <div class="alerts-container" id="speedingIncidentsContainer">
+                    <div class="no-alerts">No incidents</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div class="connection-status" id="mapStatus">
+                <span class="status-indicator status-offline"></span>
+                Connecting...
+            </div>
+            <div class="performance-indicator" id="performanceIndicator">
+                Taxis: -- | Rendered: -- | FPS: -- | Zoom: --
+            </div>
+            <div class="zoom-controls" id="zoomControls">
+                <div class="zoom-info">Zoom Level: <span id="zoomLevel">--</span></div>
+                <div class="zoom-info">Visible Taxis: <span id="visibleTaxis">--</span></div>
+                <div class="zoom-info">Render Mode: <span id="renderMode">Cluster</span></div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script>
+        class UltraOptimizedTaxiDashboard {
+            constructor() {
+                this.websocket = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.reconnectDelay = 1000;
+                this.isConnected = false;
+                
+                // Performance tracking
+                this.updateCount = 0;
+                this.lastUpdate = Date.now();
+                this.latency = 0;
+                this.taxiCount = 0;
+                this.renderedTaxiCount = 0;
+                this.fps = 0;
+                this.frameCount = 0;
+                this.lastFpsUpdate = Date.now();
+                
+                // Advanced optimization settings
+                this.maxMarkersToRender = 10000; // Maximum markers to render at once
+                this.zoomThreshold = 13; // Below this zoom, use clustering aggressively
+                this.updateThrottleMs = 100; // Minimum time between updates
+                this.lastUpdateTime = 0;
+                this.isUpdating = false;
+                
+                // Map and markers
+                this.initMap();
+                this.taxiMarkers = new Map();
+                this.visibleBounds = null;
+                this.currentZoom = 11;
+                
+                // Viewport optimization
+                this.viewportBuffer = 0.1; // 10% buffer around visible area
+                
+                // Data storage
+                this.allTaxiData = new Map();
+                
+                // Start connection
+                this.connect();
+                
+                // Performance monitoring
+                this.startPerformanceMonitoring();
+            }
+
+            initMap() {
+                this.map = L.map('map', {
+                    preferCanvas: true, // Use Canvas for better performance
+                    zoomControl: false, // We'll add custom controls
+                    attributionControl: false
+                }).setView([39.916, 116.397], 11);
+                
+                // Add zoom control in bottom right
+                L.control.zoom({
+                    position: 'bottomleft'
+                }).addTo(this.map);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap',
+                    maxZoom: 18,
+                    updateWhenIdle: true, // Only update tiles when map stops moving
+                    updateWhenZooming: false, // Don't update during zoom
+                    keepBuffer: 2 // Keep tiles in buffer for smooth panning
+                }).addTo(this.map);
+
+                // Ultra-optimized marker cluster group
+                this.markerClusterGroup = L.markerClusterGroup({
+                    maxClusterRadius: this.getClusterRadius,
+                    disableClusteringAtZoom: 16, // Only show individual markers at very high zoom
+                    spiderfyOnMaxZoom: false, // Disable spiderfy for performance
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    removeOutsideVisibleBounds: true,
+                    chunkedLoading: true,
+                    chunkInterval: 50, // Faster chunking
+                    chunkDelay: 10, // Minimal delay between chunks
+                    animateAddingMarkers: false, // Disable animations for performance
+                    iconCreateFunction: this.createClusterIcon.bind(this)
+                });
+
+                this.map.addLayer(this.markerClusterGroup);
+                this.addMonitoringZones();
+                
+                // Map event listeners for optimization
+                this.map.on('zoomstart', () => {
+                    this.isUpdating = true;
+                });
+                
+                this.map.on('zoomend', () => {
+                    this.currentZoom = this.map.getZoom();
+                    this.updateZoomInfo();
+                    this.isUpdating = false;
+                    // Trigger optimized update after zoom
+                    this.scheduleOptimizedUpdate();
+                });
+                
+                this.map.on('moveend', () => {
+                    this.visibleBounds = this.map.getBounds();
+                    this.scheduleOptimizedUpdate();
+                });
+                
+                // Initial bounds
+                this.visibleBounds = this.map.getBounds();
+            }
+
+            getClusterRadius(zoom) {
+                // Dynamic cluster radius based on zoom level for better performance
+                if (zoom <= 10) return 80;
+                if (zoom <= 12) return 60;
+                if (zoom <= 14) return 40;
+                return 20;
+            }
+
+            createClusterIcon(cluster) {
+                const count = cluster.getChildCount();
+                let className = 'marker-cluster-small';
+                let size = 30;
+                
+                if (count > 100) {
+                    className = 'marker-cluster-large';
+                    size = 50;
+                } else if (count > 10) {
+                    className = 'marker-cluster-medium';
+                    size = 40;
+                }
+                
+                return new L.DivIcon({
+                    html: `<div><span>${count > 999 ? '999+' : count}</span></div>`,
+                    className: `marker-cluster ${className}`,
+                    iconSize: new L.Point(size, size)
+                });
+            }
+
+            addMonitoringZones() {
+                // Simplified zones for better performance
+                L.circle([39.916, 116.397], {
+                    color: '#f59e0b',
+                    fillColor: '#f59e0b',
+                    fillOpacity: 0.05,
+                    radius: 10000,
+                    weight: 1,
+                    interactive: false // Non-interactive for performance
+                }).addTo(this.map);
+
+                L.circle([39.916, 116.397], {
+                    color: '#ef4444',
+                    fillColor: '#ef4444',
+                    fillOpacity: 0.02,
+                    radius: 15000,
+                    weight: 1,
+                    interactive: false
+                }).addTo(this.map);
+            }
+
+            connect() {
+                try {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    
+                    this.websocket = new WebSocket(wsUrl);
+                    
+                    this.websocket.onopen = () => {
+                        console.log('🟢 WebSocket connected');
+                        this.isConnected = true;
+                        this.reconnectAttempts = 0;
+                        this.updateConnectionStatus(true);
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        this.handleMessage(JSON.parse(event.data));
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        console.log('🔴 WebSocket disconnected');
+                        this.isConnected = false;
+                        this.updateConnectionStatus(false);
+                        this.scheduleReconnect();
+                    };
+                    
+                    this.websocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.updateConnectionStatus(false);
+                    };
+                    
+                } catch (error) {
+                    console.error('Failed to create WebSocket:', error);
+                    this.scheduleReconnect();
+                }
+            }
+
+            scheduleReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
+                    
+                    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+                    setTimeout(() => this.connect(), delay);
+                }
+            }
+
+            handleMessage(message) {
+                const now = Date.now();
+                this.latency = now - (message.timestamp * 1000);
+                this.updateCount++;
+                
+                switch (message.type) {
+                    case 'initial_data':
+                        this.handleInitialData(message.data);
+                        break;
+                    case 'taxi_update':
+                        this.handleTaxiUpdate(message.data);
+                        break;
+                    case 'stats_update':
+                        this.handleStatsUpdate(message.data);
+                        break;
+                    case 'alerts_update':
+                        this.handleAlertsUpdate(message.data);
+                        break;
+                }
+            }
+
+            handleInitialData(data) {
+                console.log('📦 Received initial data');
+                this.handleTaxiUpdate(data);
+                this.handleStatsUpdate(data.stats);
+                this.handleAlertsUpdate(data);
+            }
+
+            handleTaxiUpdate(data) {
+                if (!data.taxis) return;
+                
+                // Store all taxi data
+                for (const [taxiId, taxiData] of Object.entries(data.taxis)) {
+                    this.allTaxiData.set(taxiId, taxiData);
+                }
+                
+                this.taxiCount = this.allTaxiData.size;
+                
+                // Throttle updates to prevent overwhelming the browser
+                this.scheduleOptimizedUpdate();
+            }
+
+            scheduleOptimizedUpdate() {
+                const now = Date.now();
+                if (now - this.lastUpdateTime < this.updateThrottleMs || this.isUpdating) {
+                    return;
+                }
+                
+                this.lastUpdateTime = now;
+                
+                // Use requestAnimationFrame for smooth updates
+                requestAnimationFrame(() => {
+                    this.performOptimizedUpdate();
+                });
+            }
+
+            performOptimizedUpdate() {
+                if (this.isUpdating) return;
+                
+                this.isUpdating = true;
+                const startTime = performance.now();
+                
+                try {
+                    // Filter taxis based on current viewport and zoom level
+                    const visibleTaxis = this.getVisibleTaxis();
+                    
+                    // Clear existing markers efficiently
+                    this.markerClusterGroup.clearLayers();
+                    this.taxiMarkers.clear();
+                    
+                    // Add markers with smart limiting
+                    const markersToAdd = [];
+                    let addedCount = 0;
+                    
+                    for (const taxiData of visibleTaxis) {
+                        if (addedCount >= this.maxMarkersToRender) break;
+                        
+                        const marker = this.createOptimizedTaxiMarker(taxiData);
+                        if (marker) {
+                            this.taxiMarkers.set(taxiData.taxi_id, marker);
+                            markersToAdd.push(marker);
+                            addedCount++;
+                        }
+                    }
+                    
+                    // Add markers in chunks to prevent blocking
+                    this.addMarkersInChunks(markersToAdd);
+                    
+                    this.renderedTaxiCount = addedCount;
+                    this.updateZoomInfo();
+                    
+                } catch (error) {
+                    console.error('Error in optimized update:', error);
+                } finally {
+                    this.isUpdating = false;
+                    const endTime = performance.now();
+                    console.log(`⚡ Optimized update: ${this.renderedTaxiCount}/${this.taxiCount} taxis in ${(endTime - startTime).toFixed(2)}ms`);
+                }
+            }
+
+            getVisibleTaxis() {
+                if (!this.visibleBounds) return Array.from(this.allTaxiData.values());
+                
+                // Expand bounds for smoother experience
+                const expandedBounds = this.expandBounds(this.visibleBounds, this.viewportBuffer);
+                
+                const visibleTaxis = [];
+                for (const taxiData of this.allTaxiData.values()) {
+                    if (this.isInBounds(taxiData, expandedBounds)) {
+                        visibleTaxis.push(taxiData);
+                    }
+                }
+                
+                // Sort by priority (speed, distance from center, etc.)
+                return this.prioritizeTaxis(visibleTaxis);
+            }
+
+            expandBounds(bounds, buffer) {
+                const latDiff = bounds.getNorth() - bounds.getSouth();
+                const lngDiff = bounds.getEast() - bounds.getWest();
+                
+                return L.latLngBounds(
+                    [bounds.getSouth() - latDiff * buffer, bounds.getWest() - lngDiff * buffer],
+                    [bounds.getNorth() + latDiff * buffer, bounds.getEast() + lngDiff * buffer]
+                );
+            }
+
+            isInBounds(taxiData, bounds) {
+                return bounds.contains([taxiData.latitude, taxiData.longitude]);
+            }
+
+            prioritizeTaxis(taxis) {
+                // Prioritize speeding taxis and those closer to center
+                const center = this.map.getCenter();
+                
+                return taxis.sort((a, b) => {
+                    // Priority 1: Speeding taxis
+                    if (a.speed > 50 && b.speed <= 50) return -1;
+                    if (b.speed > 50 && a.speed <= 50) return 1;
+                    
+                    // Priority 2: Distance from center
+                    const distA = this.map.distance([a.latitude, a.longitude], center);
+                    const distB = this.map.distance([b.latitude, b.longitude], center);
+                    return distA - distB;
+                });
+            }
+
+            addMarkersInChunks(markers, chunkSize = 200) {
+                let index = 0;
+                
+                const addChunk = () => {
+                    const chunk = markers.slice(index, index + chunkSize);
+                    if (chunk.length > 0) {
+                        this.markerClusterGroup.addLayers(chunk);
+                        index += chunkSize;
+                        
+                        if (index < markers.length) {
+                            setTimeout(addChunk, 5); // Small delay to keep UI responsive
+                        }
+                    }
+                };
+                
+                addChunk();
+            }
+
+            createOptimizedTaxiMarker(data) {
+                try {
+                    const color = this.getSpeedColor(data.speed);
+                    
+                    // Use simple circle markers for better performance
+                    const marker = L.circleMarker([data.latitude, data.longitude], {
+                        radius: this.currentZoom > 14 ? 6 : 4,
+                        fillColor: color,
+                        color: 'white',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                    
+                    // Lazy popup creation - only create when needed
+                    marker.on('click', () => {
+                        if (!marker.getPopup()) {
+                            marker.bindPopup(this.createTaxiPopup(data));
+                        }
+                        marker.openPopup();
+                    });
+                    
+                    return marker;
+                } catch (error) {
+                    console.error('Error creating marker:', error);
+                    return null;
+                }
+            }
+
+            getSpeedColor(speed) {
+                return speed > 50 ? '#ef4444' : speed > 35 ? '#f59e0b' : '#10b981';
+            }
+
+            createTaxiPopup(data) {
+                const statusText = data.speed > 50 ? 'SPEEDING' : data.speed > 35 ? 'Fast' : 'Normal';
+                const color = this.getSpeedColor(data.speed);
+                
+                return `
+                    <div style="min-width: 180px; font-size: 0.8em;">
+                        <h4 style="margin: 0 0 6px 0; color: #333;">🚕 Taxi ${data.taxi_id}</h4>
+                        <div><strong>Status:</strong> <span style="color: ${color};">${statusText}</span></div>
+                        <div><strong>Speed:</strong> ${data.speed.toFixed(1)} km/h</div>
+                        <div><strong>Distance:</strong> ${data.total_distance.toFixed(2)} km</div>
+                    </div>
+                `;
+            }
+
+            handleStatsUpdate(data) {
+                document.getElementById('activeTaxis').textContent = data.active_taxis_count || 0;
+                document.getElementById('totalDistance').textContent = 
+                    parseFloat(data.fleet_total_distance || 0).toFixed(2);
+            }
+
+            handleAlertsUpdate(data) {
+                if (!data.alerts) return;
+                
+                const speedingIncidents = data.alerts.filter(alert => alert.type === 'speeding').slice(0, 10);
+                const areaViolations = data.alerts.filter(alert => alert.type === 'area_violation').slice(0, 10);
+                
+                this.updateAlertContainer('speedingIncidentsContainer', speedingIncidents, 'speeding');
+                this.updateAlertContainer('areaViolationsContainer', areaViolations, 'area_violation');
+            }
+
+            updateAlertContainer(containerId, alerts, alertType) {
+                const container = document.getElementById(containerId);
+                
+                if (alerts.length === 0) {
+                    container.innerHTML = '<div class="no-alerts">No incidents</div>';
+                } else {
+                    container.innerHTML = alerts
+                        .map(alert => `
+                            <div class="alert-item ${alertType}">
+                                <div style="font-weight: bold;">Taxi ${alert.taxi_id}</div>
+                                <div style="font-size: 0.8em; color: #666;">${alert.timestamp}</div>
+                            </div>
+                        `).join('');
+                }
+            }
+
+            updateConnectionStatus(isConnected, message = '') {
+                const headerStatus = document.getElementById('headerStatus');
+                const mapStatus = document.getElementById('mapStatus');
+                
+                if (isConnected) {
+                    headerStatus.innerHTML = '<span class="status-indicator status-online"></span>Ultra-Fast Connected';
+                    mapStatus.innerHTML = '<span class="status-indicator status-online"></span>Ultra-Fast Mode';
+                    mapStatus.classList.remove('reconnecting');
+                } else {
+                    const statusText = message || 'Reconnecting...';
+                    headerStatus.innerHTML = '<span class="status-indicator status-offline"></span>' + statusText;
+                    mapStatus.innerHTML = '<span class="status-indicator status-offline"></span>' + statusText;
+                    mapStatus.classList.add('reconnecting');
+                }
+            }
+
+            updateZoomInfo() {
+                document.getElementById('zoomLevel').textContent = this.currentZoom;
+                document.getElementById('visibleTaxis').textContent = this.renderedTaxiCount;
+                document.getElementById('renderMode').textContent = 
+                    this.currentZoom >= 16 ? 'Individual' : 'Clustered';
+            }
+
+            startPerformanceMonitoring() {
+                setInterval(() => {
+                    const now = Date.now();
+                    this.frameCount++;
+                    
+                    if (now - this.lastFpsUpdate >= 1000) {
+                        this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
+                        this.frameCount = 0;
+                        this.lastFpsUpdate = now;
+                        
+                        document.getElementById('performanceIndicator').textContent = 
+                            `Taxis: ${this.taxiCount} | Rendered: ${this.renderedTaxiCount} | FPS: ${this.fps} | Zoom: ${this.currentZoom}`;
+                    }
+                }, 16);
+            }
+
+            // Public methods for debugging
+            getPerformanceInfo() {
+                return {
+                    totalTaxis: this.taxiCount,
+                    renderedTaxis: this.renderedTaxiCount,
+                    fps: this.fps,
+                    zoom: this.currentZoom,
+                    latency: this.latency,
+                    connected: this.isConnected
+                };
+            }
+        }
+
+        // Initialize dashboard
+        let dashboard;
+        document.addEventListener('DOMContentLoaded', () => {
+            dashboard = new UltraOptimizedTaxiDashboard();
+            window.dashboard = dashboard; // For debugging
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            if (dashboard && dashboard.websocket) {
+                dashboard.websocket.close();
+            }
+        });
+    </script>
+</body>
+</html>
